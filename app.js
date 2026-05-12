@@ -263,8 +263,9 @@ if (exportPdfBtn) {
 
                 // Append to body temporarily so html2canvas renders the full node
                 pdfContainer.style.position = 'absolute';
-                pdfContainer.style.left = '-15000px'; 
-                pdfContainer.style.top = '0';
+                pdfContainer.style.left = '0'; 
+                pdfContainer.style.top = Math.max(window.scrollY, document.documentElement.scrollTop) + 'px';
+                pdfContainer.style.zIndex = '-9999';
                 document.body.appendChild(pdfContainer);
 
                 setTimeout(() => {
@@ -717,13 +718,13 @@ function updateRowTotals() {
     }
 }
 
-// Firebase Handlers
+// Local Memory Handlers (Pushing to cloud is now manual)
 function saveToLocalStorage() {
-    saveScheduleData({ teachers });
+    // Memory updated automatically
 }
 
 function saveHomeroomAssignments() {
-    saveScheduleData({ homeroomAssignments });
+    // Memory updated automatically
 }
 
 function renderHomeroomRow() {
@@ -789,7 +790,52 @@ function saveTableState() {
         }
     });
     tableState = state;
-    saveScheduleData({ tableState: state });
+}
+
+// Manual Save and Revert Handlers
+const saveBoardBtn = document.getElementById('save-board-btn');
+const revertBoardBtn = document.getElementById('revert-board-btn');
+
+if (saveBoardBtn) {
+    saveBoardBtn.addEventListener('click', async () => {
+        saveBoardBtn.textContent = 'جاري الحفظ...';
+        saveBoardBtn.disabled = true;
+        
+        saveTableState(); // Ensure memory has latest DOM state
+        
+        await saveScheduleData({ teachers, homeroomAssignments, tableState });
+        
+        saveBoardBtn.textContent = 'تم الحفظ ✔️';
+        setTimeout(() => {
+            saveBoardBtn.textContent = 'حفظ التعديلات 💾';
+            saveBoardBtn.disabled = false;
+        }, 2000);
+    });
+}
+
+if (revertBoardBtn) {
+    revertBoardBtn.addEventListener('click', async () => {
+        if(confirm('هل أنت متأكد من رغبتك بالتراجع؟ سيتم إلغاء جميع التعديلات التي لم تحفظها وتحديث الجدول من السحابة.')) {
+            revertBoardBtn.textContent = 'جاري التراجع...';
+            revertBoardBtn.disabled = true;
+            
+            const data = await fetchScheduleData();
+            if (data) {
+                teachers = data.teachers || [];
+                homeroomAssignments = data.homeroomAssignments || {};
+                tableState = data.tableState || {};
+            }
+            
+            ensureTeacherColors();
+            renderTeachersList();
+            renderHomeroomRow();
+            renderTable();
+            updateAllAllocations();
+            
+            revertBoardBtn.textContent = 'تراجع ↩️';
+            revertBoardBtn.disabled = false;
+        }
+    });
 }
 
 // Tab Switching Logic

@@ -545,3 +545,95 @@ input[type="number"] {
     font-size: 0.8rem;
 }
 
+/* Print Styles */
+@media print {
+    body {
+        background: white !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        color: black !important;
+    }
+    
+    .header,
+    .tabs-nav,
+    .table-actions,
+    .add-teacher-section,
+    .sidebar,
+    .mini-sidebar,
+    .teachers-list-section,
+    .glass-card h2 {
+        display: none !important;
+    }
+    
+    #tab-schedule {
+        display: block !important;
+    }
+    
+    .container {
+        padding: 0;
+        max-width: 100%;
+        margin: 0;
+    }
+    
+    .glass-card {
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        background: transparent !important;
+    }
+    
+    .table-responsive {
+        overflow: visible !important;
+        max-height: none !important;
+    }
+    
+    table {
+        box-shadow: none !important;
+        border: 2px solid #000 !important;
+        width: 100% !important;
+    }
+    
+    th, td {
+        border: 1px solid #000 !important;
+        padding: 4px !important;
+        font-size: 10pt !important;
+        color: #000 !important;
+        position: static !important;
+    }
+    
+    th, .subject-name, .total-header, .homeroom-th {
+        background-color: #f0f0f0 !important;
+        color: #000 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    
+    select, input {
+        border: none !important;
+        background: transparent !important;
+        font-size: 10pt !important;
+        padding: 0 !important;
+        appearance: none !important;
+        -webkit-appearance: none !important;
+        -moz-appearance: none !important;
+        color: #000 !important;
+        text-align: center;
+        text-align-last: center;
+    }
+    
+    .cell-content {
+        gap: 2px !important;
+    }
+    
+    .cell-content.has-data {
+        background-color: transparent !important;
+        border: none !important;
+        padding: 0 !important;
+    }
+    
+    @page {
+        size: landscape;
+        margin: 1cm;
+    }
+}
+
