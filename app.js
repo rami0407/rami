@@ -1,6 +1,11 @@
 import { fetchScheduleData, saveScheduleData } from './firebase-db.js';
 
 // State Management
+let currentVersionId = 'v_default';
+let currentVersionName = 'גרסה ראשית';
+let allVersionsMetadata = {};
+let hasUnsavedChanges = false;
+
 let teachers = [];
 let homeroomAssignments = {};
 let tableState = {};
@@ -41,7 +46,6 @@ const clearBoardBtn = document.getElementById('clear-board-btn');
 const exportExcelBtn = document.getElementById('export-excel-btn');
 const exportPdfBtn = document.getElementById('export-pdf-btn');
 
-
 // Initialize App
 function ensureTeacherColors() {
     let changed = false;
@@ -55,23 +59,57 @@ function ensureTeacherColors() {
     if (changed) saveToLocalStorage();
 }
 
-async function init() {
+async function init(forceVersionId = null) {
     const loadingDiv = document.createElement('div');
     loadingDiv.id = 'loading-overlay';
     loadingDiv.innerHTML = '<div style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.8); z-index:9999; display:flex; justify-content:center; align-items:center; font-size:24px; font-weight:bold; color:var(--primary-color);">جاري تحميل البيانات من السحابة...</div>';
     document.body.appendChild(loadingDiv);
 
-    const data = await fetchScheduleData();
-    if (data) {
-        teachers = data.teachers || [];
-        homeroomAssignments = data.homeroomAssignments || {};
-        tableState = data.tableState || {};
+    let dbData = await fetchScheduleData();
+    
+    // Migration check: if no 'versions' object exists but old data is there
+    if (dbData && !dbData.versions && (dbData.teachers || Object.keys(dbData).length > 0)) {
+        dbData.versions = {
+            'v_default': {
+                name: 'גרסה ראשית',
+                teachers: dbData.teachers || [],
+                homeroomAssignments: dbData.homeroomAssignments || {},
+                tableState: dbData.tableState || {}
+            }
+        };
+        await saveScheduleData({ versions: dbData.versions });
+    } else if (!dbData || !dbData.versions) {
+        dbData = { versions: { 'v_default': { name: 'גרסה ראשית', teachers: [], homeroomAssignments: {}, tableState: {} } } };
     }
+
+    allVersionsMetadata = {};
+    for (let vid in dbData.versions) {
+        allVersionsMetadata[vid] = dbData.versions[vid].name || 'גרסה ללא שם';
+    }
+    
+    if (forceVersionId && dbData.versions[forceVersionId]) {
+        currentVersionId = forceVersionId;
+    } else {
+        const savedVid = localStorage.getItem('last_version_id');
+        if (savedVid && dbData.versions[savedVid]) {
+            currentVersionId = savedVid;
+        } else {
+            currentVersionId = Object.keys(dbData.versions)[0] || 'v_default';
+        }
+    }
+    
+    const vData = dbData.versions[currentVersionId];
+    currentVersionName = vData.name || 'גרסה ראשית';
+    teachers = vData.teachers || [];
+    homeroomAssignments = vData.homeroomAssignments || {};
+    tableState = vData.tableState || {};
+    hasUnsavedChanges = false;
 
     if (document.getElementById('loading-overlay')) {
         document.body.removeChild(document.getElementById('loading-overlay'));
     }
 
+    renderVersionControl();
     ensureTeacherColors();
     renderTeachersList();
     renderHomeroomRow();
@@ -720,11 +758,11 @@ function updateRowTotals() {
 
 // Local Memory Handlers (Pushing to cloud is now manual)
 function saveToLocalStorage() {
-    // Memory updated automatically
+    hasUnsavedChanges = true;
 }
 
 function saveHomeroomAssignments() {
-    // Memory updated automatically
+    hasUnsavedChanges = true;
 }
 
 function renderHomeroomRow() {
@@ -790,6 +828,7 @@ function saveTableState() {
         }
     });
     tableState = state;
+    hasUnsavedChanges = true;
 }
 
 // Manual Save and Revert Handlers
@@ -803,7 +842,20 @@ if (saveBoardBtn) {
         
         saveTableState(); // Ensure memory has latest DOM state
         
-        await saveScheduleData({ teachers, homeroomAssignments, tableState });
+        const versionData = {
+            name: currentVersionName,
+            teachers,
+            homeroomAssignments,
+            tableState
+        };
+        
+        await saveScheduleData({ 
+            versions: {
+                [currentVersionId]: versionData
+            }
+        });
+        
+        hasUnsavedChanges = false;
         
         saveBoardBtn.textContent = 'تم الحفظ ✔️';
         setTimeout(() => {
@@ -815,28 +867,76 @@ if (saveBoardBtn) {
 
 if (revertBoardBtn) {
     revertBoardBtn.addEventListener('click', async () => {
-        if(confirm('هل أنت متأكد من رغبتك بالتراجع؟ سيتم إلغاء جميع التعديلات التي لم تحفظها وتحديث الجدول من السحابة.')) {
+        if(confirm('هل أنت متأكد من رغبتك بالتراجع؟ سيتم إلغاء جميع التعديلات التي لم تحفظها ותחזור לגרסה האחרונה השמורה.')) {
             revertBoardBtn.textContent = 'جاري التراجع...';
             revertBoardBtn.disabled = true;
             
-            const data = await fetchScheduleData();
-            if (data) {
-                teachers = data.teachers || [];
-                homeroomAssignments = data.homeroomAssignments || {};
-                tableState = data.tableState || {};
-            }
-            
-            ensureTeacherColors();
-            renderTeachersList();
-            renderHomeroomRow();
-            renderTable();
-            updateAllAllocations();
+            await init(currentVersionId);
             
             revertBoardBtn.textContent = 'تراجع ↩️';
             revertBoardBtn.disabled = false;
         }
     });
 }
+
+// Version Control Handlers
+function renderVersionControl() {
+    const select = document.getElementById('version-select');
+    if (!select) return;
+    select.innerHTML = '';
+    for (let vid in allVersionsMetadata) {
+        const opt = document.createElement('option');
+        opt.value = vid;
+        opt.textContent = allVersionsMetadata[vid];
+        if (vid === currentVersionId) opt.selected = true;
+        select.appendChild(opt);
+    }
+}
+
+document.getElementById('version-select')?.addEventListener('change', (e) => {
+    const newVid = e.target.value;
+    if (hasUnsavedChanges) {
+        if (!confirm('יש לך שינויים שלא נשמרו בגרסה זו. המעבר ימחק אותם. להמשיך?')) {
+            e.target.value = currentVersionId; // revert select
+            return;
+        }
+    }
+    localStorage.setItem('last_version_id', newVid);
+    init(newVid);
+});
+
+document.getElementById('create-copy-btn')?.addEventListener('click', async () => {
+    const newName = prompt('הזן שם לעותק החדש:', currentVersionName + ' (עותק)');
+    if (!newName) return;
+    
+    saveTableState(); // make sure memory is up to date
+    
+    const newVid = 'v_' + Date.now();
+    currentVersionId = newVid;
+    currentVersionName = newName;
+    allVersionsMetadata[newVid] = newName;
+    localStorage.setItem('last_version_id', newVid);
+    
+    teachers = JSON.parse(JSON.stringify(teachers));
+    homeroomAssignments = JSON.parse(JSON.stringify(homeroomAssignments));
+    tableState = JSON.parse(JSON.stringify(tableState));
+    hasUnsavedChanges = true;
+    
+    renderVersionControl();
+    
+    // Auto-save the new copy to cloud
+    if (saveBoardBtn) saveBoardBtn.click();
+});
+
+document.getElementById('rename-version-btn')?.addEventListener('click', () => {
+    const newName = prompt('הזן שם חדש לגרסה זו:', currentVersionName);
+    if (!newName || newName === currentVersionName) return;
+    currentVersionName = newName;
+    allVersionsMetadata[currentVersionId] = newName;
+    renderVersionControl();
+    hasUnsavedChanges = true;
+    if (saveBoardBtn) saveBoardBtn.click();
+});
 
 // Tab Switching Logic
 document.querySelectorAll('.tab-btn').forEach(btn => {

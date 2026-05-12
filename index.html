@@ -18,6 +18,18 @@
     </header>
 
     <main class="container">
+        <!-- Version Control -->
+        <div class="version-control glass-card" style="margin-bottom: 20px; padding: 15px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <label for="version-select" style="font-weight: 600; color: var(--primary-color);">גרסה (Version):</label>
+                <select id="version-select" style="width: 250px; margin: 0; padding: 8px 15px; font-weight: bold;"></select>
+            </div>
+            <div class="version-actions" style="display: flex; gap: 10px;">
+                <button id="create-copy-btn" class="btn-primary" style="margin: 0; background-color: #9b59b6; border-color: #9b59b6; padding: 8px 20px;">שכפל גרסה 📑</button>
+                <button id="rename-version-btn" class="btn-primary" style="margin: 0; background-color: #34495e; border-color: #34495e; padding: 8px 20px;">שנה שם ✏️</button>
+            </div>
+        </div>
+
         <!-- Tabs Navigation -->
         <div class="tabs-nav">
             <button class="tab-btn active" data-tab="tab-teachers">1. נתוני מורים</button>
